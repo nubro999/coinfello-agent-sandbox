@@ -4,10 +4,11 @@
   "private": true,
   "description": "CoinFello npm CLI test & personal agent sandbox",
   "scripts": {
-    "signer": "coinfello-agent signer-daemon start",
-    "signer:npx": "npx @coinfello/agent-cli signer-daemon start"
+    "cf": "dotenv -e .env -- coinfello",
+    "signer": "dotenv -e .env -- coinfello signer-daemon start"
   },
   "devDependencies": {
-    "@coinfello/agent-cli": "^0.3.6"
+    "@coinfello/agent-cli": "^0.3.6",
+    "dotenv-cli": "^11.0.0"
   }
 }

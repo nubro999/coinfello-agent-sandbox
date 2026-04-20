@@ -1,0 +1,13 @@
+{
+  "name": "coinfello-agent-sandbox",
+  "version": "0.0.1",
+  "private": true,
+  "description": "CoinFello npm CLI test & personal agent sandbox",
+  "scripts": {
+    "signer": "coinfello-agent signer-daemon start",
+    "signer:npx": "npx @coinfello/agent-cli signer-daemon start"
+  },
+  "devDependencies": {
+    "@coinfello/agent-cli": "^0.3.6"
+  }
+}

@@ -16,7 +16,11 @@ approve_delegation_request                # callId=call_mDmc7H4l…   scope={erc
 # → tx 0x1044…
 ```
 
-Same scope, same signer, same chat — second Secure Enclave prompt, second user decision, for an authorization that was already granted in the first one.
+Same scope, same signer, same chat — second Secure Enclave prompt, second user decision, for an authorization that was already granted.
+
+## Observed across repeated use
+
+This is not a one-off. Across multiple end-to-end runs from this sandbox (different prompts, different amounts, different recipients), the same failure-then-retry pattern reappeared regularly, and in every case the retry delegation's scope was byte-identical to the first. A noticeable share of the total Secure Enclave prompts we went through were these redundant second approvals. The friction compounds — each identical-scope re-approval is another biometric, another review step that adds nothing the user didn't already authorize.
 
 ## Why the second signature is unnecessary
 
@@ -26,19 +30,11 @@ The delegation the user signed the first time is a standalone EIP-712 object. No
 - `ERC20TransferAmount` is a **cumulative** caveat, not a single-use one. The same signed delegation can legitimately back multiple `redeemDelegations` calls, as long as the running total stays under `maxAmount`.
 - No `LimitedCalls` or `NonceEnforcer` caveat is applied, so there is no on-chain reason the first signature cannot be redeemed again with a corrected execution.
 
-So when the only thing that changed between the failed and successful attempts is **the server's execution plan**, the server already has everything it needs: the signed delegation. Asking the user to re-sign is pure client-round-trip overhead.
+When the only thing that changed between the failed and successful attempts is the server's execution plan, the signed delegation already covers the retry. Asking the user to re-sign is client-round-trip overhead, not a security requirement.
 
-## Proposed behavior
+## What we'd like
 
-On simulation failure where the caveats themselves did not reject the attempted execution (i.e. the server's planner picked a path that wouldn't even enter the caveat check — wrong `target`, wrong selector, wrong call shape, etc.):
-
-1. **Server re-plans internally** using the already-submitted signed delegation.
-2. **Re-simulates** with the corrected execution.
-3. **Submits** on success, returns the tx hash in the same HTTP response.
-
-The user sees one prompt → one signature → one result. No "retry" prompt, no new `callId`, no second biometric.
-
-If the server's replan requires a genuinely different scope (e.g. needs to touch a second token, hit a bridge, exceed `maxAmount`), that's a real scope change and a second signature is appropriate — but that is **not** what we hit in the repro above. The second `delegationArgs` was identical to the first.
+Identical-scope retries after a simulation failure should not surface to the user as a fresh approval. How that's achieved — server-side replan, signature reuse, or something else — is for the CoinFello team to decide; the goal is just to remove the redundant second signature.
 
 ## What still requires a fresh signature
 
@@ -47,17 +43,3 @@ Unchanged:
 - Different chain, token, or `maxAmount` — scope changed, re-approve.
 - A caveat actively rejected the attempted execution — the scope the user granted is genuinely insufficient; re-approve after scope widening.
 - User-initiated new request after the chat turn is closed.
-
-## Minimal contract
-
-On the conversation API response after simulation failure, the server can either:
-
-- (a) Complete the redemption internally and return the final execution result in the same response — no retry round-trip needed, or
-- (b) If a client round-trip is still required (e.g. to re-use a fresh nonce salt), return a lightweight `reuse_prior_signature` directive keyed to the prior `callId`, and the CLI re-submits the already-cached signature without prompting the user again.
-
-Option (a) is simpler and is the preferred fix.
-
-## Out of scope
-
-- Server-side execution planning itself. The planner can keep choosing paths; we only ask that identical-scope retries don't bubble up to the user as a fresh approval.
-- Auto-signing. Nothing here bypasses the user's initial Secure Enclave prompt — only the redundant second one.
